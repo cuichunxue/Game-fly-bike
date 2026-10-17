@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#8ab4e6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="空とぶ自転車で、朝の丘から雲海・空の街・夕陽の海・星の海をこえて月まで。指一本で飛べる3Dフライトゲーム。">
+<meta property="og:title" content="SKY PEDAL — 空とぶ自転車">
+<meta property="og:description" content="丘をかけ下りて、空へ。雲海、空の街、夕陽の海をこえて、月まで。">
+<title>SKY PEDAL — 空とぶ自転車</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Fredoka:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="stage"></div>
+
+<!-- loading -->
+<div id="loading" class="loading">
+  <div class="load-logo">SKY PEDAL<span>空とぶ自転車</span></div>
+  <div class="load-wheel" aria-hidden="true"><i></i></div>
+  <div class="load-bar"><b id="loadFill"></b></div>
+  <div class="load-txt" id="loadTxt">準備しています…</div>
+</div>
+
+<!-- full-screen overlays -->
+<div id="flash" class="ov flash"></div>
+<div id="whiteOv" class="ov whiteout"></div>
+<div id="lowOv" class="ov lowwarn"></div>
+
+<!-- HUD -->
+<div class="hud" id="hud" hidden>
+  <div class="hud-tl">
+    <div class="score" id="score">0</div>
+    <div class="combo" id="combo"><b id="comboX">×1.0</b><i><u id="comboBar"></u></i></div>
+  </div>
+  <div class="hud-tc"><div class="jbar" id="jbar"></div></div>
+  <div class="hud-tr">
+    <button id="muteBtn" class="ibtn mutebtn" aria-label="音のオン・オフ"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="x" d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+    <button id="pauseBtn" class="ibtn" aria-label="一時停止"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg></button>
+  </div>
+  <div class="hud-bl">
+    <div class="hearts" id="hearts"></div>
+    <div class="chips"><span id="flock"></span><span id="starsRun"></span></div>
+  </div>
+  <div class="hud-bc"><b id="spd">0</b><small>km/h</small><span class="sep">·</span><small>高度</small><b id="alt">0</b><small>m</small></div>
+
+  <div class="banner" id="banner" aria-live="polite"><span class="bn-icon" id="bnIcon"></span><span class="bn-en" id="bnEn"></span><b class="bn-name" id="bnName"></b><span class="bn-sub" id="bnSub"></span></div>
+  <div class="toast" id="toast" aria-live="polite"><b id="toastBig"></b><small id="toastSmall"></small></div>
+  <div class="hint" id="hint"></div>
+  <div class="popups" id="popups"></div>
+  <div class="ringarrow" id="ringArrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h12M11 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+</div>
+
+<!-- touch controls -->
+<div class="touch" id="touch" hidden>
+  <span class="tlabel">画面をなぞって操縦</span>
+  <div class="stick" id="stick" hidden><i id="knob"></i></div>
+  <button class="tbtn bell" id="bellBtn" aria-label="ベルを鳴らす"><svg viewBox="0 0 24 24"><path d="M12 3a1.5 1.5 0 0 1 1.5 1.5v.6A6 6 0 0 1 18 11v4l2 2v1H4v-1l2-2v-4a6 6 0 0 1 4.5-5.9v-.6A1.5 1.5 0 0 1 12 3zm-2 16h4a2 2 0 0 1-4 0z"/></svg></button>
+  <button class="tbtn sprint" id="sprintBtn" aria-label="こぐ（長押し）"><svg class="ring" viewBox="0 0 120 120"><circle class="trk" cx="60" cy="60" r="54" pathLength="100"/><circle class="val" id="stamRing" cx="60" cy="60" r="54" pathLength="100"/></svg><span class="pedal-ico" aria-hidden="true">🚲</span><span class="lbl">こぐ</span></button>
+</div>
+
+<!-- title -->
+<section class="screen title" id="title" hidden>
+  <div class="logo-wrap">
+    <svg class="logo" viewBox="0 0 640 220" role="img" aria-label="SKY PEDAL 空とぶ自転車">
+      <defs>
+        <linearGradient id="lgA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#fff3d0"/><stop offset="1" stop-color="#ffc46a"/></linearGradient>
+        <linearGradient id="lgW" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfe6ff"/></linearGradient>
+        <filter id="sh" x="-20%" y="-40%" width="140%" height="180%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#2a3a7a" flood-opacity=".45"/></filter>
+      </defs>
+      <g filter="url(#sh)">
+        <!-- a little winged bicycle -->
+        <g transform="translate(70,96)" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="-34" cy="22" r="20"/><circle cx="34" cy="22" r="20"/>
+          <path d="M-34 22 L-8 -6 L22 -6 L34 22 M-8 -6 L4 22 L-34 22 M4 22 L22 -6 M18 -18 L28 -18 M22 -6 L24 -18 M-12 -14 L-2 -14 M-8 -6 L-6 -14"/>
+        </g>
+        <path d="M58 86 C30 60 18 40 22 18 C40 36 52 46 74 54 C56 30 54 14 62 0 C74 26 82 40 96 52 Z" fill="url(#lgW)" opacity=".95"/>
+        <text x="150" y="112" font-family="Fredoka,'Arial Rounded MT Bold','Hiragino Maru Gothic ProN',sans-serif" font-weight="700" font-size="96" fill="url(#lgA)" letter-spacing="3">SKY PEDAL</text>
+        <text x="156" y="170" font-family="'Zen Maru Gothic','Hiragino Maru Gothic ProN',sans-serif" font-weight="900" font-size="42" fill="#ffffff" letter-spacing="10">空とぶ自転車</text>
+      </g>
+    </svg>
+  </div>
+  <div class="tcard">
+    <p class="lead">丘をかけ下りて、空へ。<b>雲海、空の街、夕陽の海</b>をこえて、<b>月</b>まで。</p>
+    <button class="go big" id="startBtn"><span>タップして とびだす</span><svg viewBox="0 0 24 24"><path d="M5 12h12M12 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="best" id="bestLine"></div>
+    <div class="row"><div class="seg" id="modeSeg"><button data-v="journey" aria-pressed="true">🌙 ジャーニー</button><button data-v="free" aria-pressed="false">☁️ そらさんぽ</button></div></div>
+    <div class="row" id="worldRow" hidden><span class="lbl">出発する世界</span><div class="wpicks" id="worldPick"></div></div>
+    <div class="row two">
+      <div><span class="lbl">自転車の色</span><div class="swatches" id="paintSeg"></div></div>
+      <div><span class="lbl">アシスト</span><div class="seg small" id="assistSeg"><button data-v="strong">つよい</button><button data-v="normal">ふつう</button><button data-v="off">なし</button></div></div>
+    </div>
+    <div class="trow">
+      <details class="howto"><summary>あそびかた</summary>
+        <ul class="tips">
+          <li><b>画面をなぞる</b>と操縦。上へなぞるとのぼる、下でさがる、左右でまがる。<b>指をはなすと水平</b>にもどります。</li>
+          <li>右下の<b>こぐ</b>を長押しで加速・上昇。元気ゲージは<b>滑空</b>や<b>上昇気流</b>でもどります。</li>
+          <li>下りると速くなり、上るとおそくなる。<b>高さとスピードを交換</b>するのがコツ。</li>
+          <li><b>光の輪</b>をつなげてコンボ。最後の金の輪で<b>追い風</b>。各世界に<b>★スターメダル</b>が3つかくれています。</li>
+          <li>鳥の群れに近づくと<b>なかま</b>になって一緒に飛びます。<b>🔔ベル</b>で遠くの群れも呼べる。</li>
+          <li>キーボード：矢印 / WASD で操縦、Space でこぐ、B でベル、P で一時停止。ゲームパッドも使えます。</li>
+        </ul>
+      </details>
+      <button class="ibtn mutebtn" id="titleMute" aria-label="音のオン・オフ"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="x" d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+      <button class="ibtn" id="settingsBtn" aria-label="設定"><svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.4 4.6l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-4l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-2.3L1.6 9.6l2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h4l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 2.3z"/></svg></button>
+    </div>
+  </div>
+</section>
+
+<!-- pause / settings -->
+<section class="screen" id="pause" hidden>
+  <div class="card">
+    <h2>ひと休み</h2>
+    <label class="setting"><span>BGM</span><input id="musicVol" type="range" min="0" max="100" value="60"></label>
+    <label class="setting"><span>効果音</span><input id="sfxVol" type="range" min="0" max="100" value="80"></label>
+    <label class="setting"><span>音を消す</span><input type="checkbox" id="muteChk"></label>
+    <div class="setting"><span>アシスト</span><div class="seg small" id="assistSeg2"><button data-v="strong">つよい</button><button data-v="normal">ふつう</button><button data-v="off">なし</button></div></div>
+    <div class="setting"><span>画質</span><div class="seg small" id="qualSeg"><button data-v="auto">自動</button><button data-v="high">高</button><button data-v="mid">中</button><button data-v="low">低</button></div></div>
+    <label class="setting"><span>上下を反転（飛行機式）</span><input type="checkbox" id="invertChk"></label>
+    <label class="setting"><span>スマホを傾けて操縦</span><input type="checkbox" id="tiltChk"></label>
+    <label class="setting"><span>揺れ・フラッシュを控えめに</span><input type="checkbox" id="motionChk"></label>
+    <div class="btns">
+      <button class="go" id="resumeBtn"><span>つづける</span></button>
+      <button class="ghost" id="restartBtn">はじめから</button>
+      <button class="ghost" id="quitBtn">タイトルへ戻る</button>
+    </div>
+  </div>
+</section>
+
+<!-- result -->
+<section class="screen" id="result" hidden>
+  <div class="card result-card">
+    <div class="res-head">
+      <div class="grade" id="grade">A</div>
+      <div><span class="eyebrow" id="resEyebrow">JOURNEY</span><h2 id="resTitle">結果</h2></div>
+    </div>
+    <canvas class="photo" id="photo" width="1080" height="1350" aria-label="記念写真"></canvas>
+    <p class="lead" id="debrief"></p>
+    <dl class="stats" id="resStats"></dl>
+    <div class="resstars" id="resStars"></div>
+    <div class="btns">
+      <button class="go big" id="nextBtn"><span>もう一度とぶ</span></button>
+      <button class="go alt" id="retryBtn" hidden><span>この世界から再挑戦</span></button>
+      <button class="ghost" id="shareBtn">📷 写真をシェア</button>
+      <button class="ghost" id="homeBtn">タイトルへ</button>
+    </div>
+  </div>
+</section>
+
+<noscript><div class="card" style="margin:40px auto">JavaScriptを有効にしてください。</div></noscript>
+
+<script src="js/vendor/three.min.js"></script>
+<script src="js/vendor/three-extras.js"></script>
+<script src="js/textures.js"></script>
+<script src="js/models.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/world.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

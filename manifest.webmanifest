@@ -1,0 +1,13 @@
+{
+  "name": "SKY PEDAL — 空とぶ自転車",
+  "short_name": "SKY PEDAL",
+  "description": "空とぶ自転車で、朝の丘から雲海・空の街・夕陽の海・星の海をこえて月まで。",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#8ab4e6",
+  "theme_color": "#8ab4e6",
+  "icons": [{ "src": "assets/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
