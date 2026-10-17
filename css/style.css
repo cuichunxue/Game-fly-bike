@@ -202,7 +202,7 @@ button:focus-visible,summary:focus-visible,input:focus-visible{outline:3px solid
   .logo{width:min(560px,86vw)}
   .stats{grid-template-columns:auto 1fr}
   .hud-tc{width:52vw;top:calc(20px + var(--safe-t))}
-  .hud-bc{bottom:calc(150px + var(--safe-b));opacity:.7}
+  .hud-bc{left:calc(14px + var(--safe-l));transform:none;bottom:calc(74px + var(--safe-b));opacity:.75}
 }
 @media (orientation:landscape) and (min-aspect-ratio:5/4){
   .title{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:1fr;align-items:start;align-content:stretch}
