@@ -104,7 +104,7 @@ SP.Models = (() => {
     g.userData = { fan, mat };
     return g;
   }
-  function bicycle(paintKey){
+  function bicycle(paintKey, kitKey){
     const Mt = mats(), P = PAINTS[paintKey] || PAINTS.sky;
     const root = new THREE.Group(), inner = new THREE.Group(); root.add(inner);
     const frameMat = new THREE.MeshStandardMaterial({ color: P.frame, metalness: .35, roughness: .3, envMapIntensity: 1.3 }); frameMat.userData.noFold = true;
@@ -129,17 +129,19 @@ SP.Models = (() => {
     const lamp = new THREE.Mesh(new THREE.CylinderGeometry(.04, .03, .07, 10).rotateX(Math.PI / 2), Mt.metal); lamp.position.set(0, -.04, .06); bar.add(lamp);
     const lampG = new THREE.Mesh(new THREE.CircleGeometry(.032, 12), Mt.lampGlow); lampG.position.set(0, -.04, .096); bar.add(lampG);
     // basket with flowers
+    const basketG = new THREE.Group(); basketG.userData.keep = true; bar.add(basketG);
     const basket = new THREE.Mesh(new THREE.CylinderGeometry(.17, .13, .17, 12, 1, true), Mt.wicker); basket.material.side = THREE.DoubleSide;
-    basket.position.set(0, -.02, .2); bar.add(basket);
-    [0xff6f9e, 0xffd84a, 0xffffff, 0x9fd0ff, 0xff8a5a].forEach((c, i) => { const fl = new THREE.Mesh(new THREE.IcosahedronGeometry(.045, 0), new THREE.MeshStandardMaterial({ color: c, roughness: .7, flatShading: true })); const a = i / 5 * Math.PI * 2; fl.position.set(Math.cos(a) * .08, .1, .2 + Math.sin(a) * .08); bar.add(fl); });
+    basket.position.set(0, -.02, .2); basketG.add(basket);
+    [0xff6f9e, 0xffd84a, 0xffffff, 0x9fd0ff, 0xff8a5a].forEach((c, i) => { const fl = new THREE.Mesh(new THREE.IcosahedronGeometry(.045, 0), new THREE.MeshStandardMaterial({ color: c, roughness: .7, flatShading: true })); const a = i / 5 * Math.PI * 2; fl.position.set(Math.cos(a) * .08, .1, .2 + Math.sin(a) * .08); basketG.add(fl); });
     // saddle
     const seat = new THREE.Mesh(new THREE.BoxGeometry(.14, .05, .26), Mt.leather); seat.position.copy(seatTop).add(V3(0, .06, -.02)); F.add(seat);
     F.add(tube(seatTop, V3(0, .9, -.24), .014, Mt.metal));
     // wheels
-    const rearW = wheel(R), frontW = wheel(R); rearW.position.copy(rearHub); frontW.position.copy(frontHub); inner.add(rearW, frontW);
+    const rearW = wheel(R), frontW = wheel(R), pivots = [new THREE.Group(), new THREE.Group()];
+    pivots[0].position.copy(rearHub); pivots[1].position.copy(frontHub); pivots[0].add(rearW); pivots[1].add(frontW); inner.add(...pivots);
     // fenders (mudguards)
     const fenderMat = frameMat.clone(); fenderMat.side = THREE.DoubleSide; fenderMat.userData.noFold = true;
-    [rearHub, frontHub].forEach((h, i) => { const fg = new THREE.Mesh(new THREE.CylinderGeometry(R + .05, R + .05, .07, 20, 1, true, i ? -.4 : .8, 2.2), fenderMat); fg.rotation.z = Math.PI / 2; fg.position.copy(h); inner.add(fg); });
+    const fenders = [rearHub, frontHub].map((h, i) => { const fg = new THREE.Mesh(new THREE.CylinderGeometry(R + .05, R + .05, .07, 20, 1, true, i ? -.4 : .8, 2.2), fenderMat); fg.rotation.z = Math.PI / 2; fg.position.copy(h); inner.add(fg); return fg; });
     // crank + pedals
     const crank = new THREE.Group(); crank.position.copy(bb); inner.add(crank);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(.1, .012, 6, 24), Mt.metal); ring.rotation.y = Math.PI / 2; ring.position.x = .05; crank.add(ring);
@@ -150,9 +152,6 @@ SP.Models = (() => {
     });
     // chain (a flat loop)
     F.add(tube(V3(.05, .4, -.06), V3(.05, R + .04, -.52), .006, Mt.dark)); F.add(tube(V3(.05, .2, -.06), V3(.05, R - .04, -.52), .006, Mt.dark));
-
-    // wings (pivot below the saddle)
-    const wings = [-1, 1].map(s => { const w = wingGroup(s, P.wing); w.position.set(s * .08, .62, -.2); inner.add(w); return w; });
 
     // rider (built once; limbs re-aimed every frame)
     const rider = new THREE.Group(); inner.add(rider);
@@ -170,10 +169,11 @@ SP.Models = (() => {
     rider.add(...thighs, ...shins, ...feet, ...uarms, ...farms);
 
     // merge the static sub-assemblies: ~75 draw calls down to ~30
-    [F, bar, rearW, frontW, crank, head, ...wings.map(w => w.userData.fan)].forEach(bake);
+    [F, bar, basketG, rearW, frontW, crank, head].forEach(bake);
     const scarfCol = new THREE.Color(P.scarf);
-    root.userData = { inner, rearW, frontW, crank, pedals, wings, bar, rider, torso, head, thighs, shins, feet, uarms, farms, frameMat, fenderMat, scarfCol, R,
+    root.userData = { inner, rearW, frontW, pivots, fenders, basketG, crank, pedals, bar, rider, torso, head, thighs, shins, feet, uarms, farms, frameMat, fenderMat, scarfCol, R, wingCol: P.wing,
       hip: V3(0, 1.0, -.2), shoulder: V3(0, 1.38, -.02), grip: [V3(.3, 1.02, .28), V3(-.3, 1.02, .28)], paint: paintKey };
+    setKit(root, kitKey || 'wing');
     return root;
   }
   // pose the rider: legs follow the pedals (2-bone IK in the side plane), arms reach the grips
@@ -218,9 +218,162 @@ SP.Models = (() => {
   function setPaint(bike, key){
     const P = PAINTS[key] || PAINTS.sky, U = bike.userData;
     U.frameMat.color.setHex(P.frame); U.fenderMat.color.setHex(P.frame); U.scarfCol.setHex(P.scarf);
-    U.wings.forEach(w => { w.userData.mat.color.setHex(P.wing); w.userData.mat.emissive.setHex(P.wing); });
+    U.wingCol = P.wing; if (U.kit.mat){ U.kit.mat.color.setHex(P.wing); U.kit.mat.emissive.setHex(P.wing); }
     U.torso.material.color.setHex(P.shirt); U.paint = key;
   }
+
+  /* ---------- flight kits: the same bicycle, four ways to fly ---------- */
+  // feather wings / a 4-rotor fold-out drone kit / wheels that turn into fans / drone kit + cargo crate and a dog
+  const KITS = {
+    wing:  { name: 'はねの自転車',     icon: '🪽', sub: '羽がひらく、なつかしい空',     motor: false },
+    fly:   { name: '変形フライバイク', icon: '🚁', sub: '4つのファンが展開する',         motor: true },
+    hover: { name: 'ホバーバイク',     icon: '🛞', sub: 'タイヤがファンに変わる',         motor: true },
+    cargo: { name: 'カーゴバイク',     icon: '🐕', sub: '相棒の犬と、どこまでも',         motor: true },
+  };
+  // one shared rotor material: blades when slow, a glowing blur when fast
+  const rotorU = { ang: { value: 0 }, spin: { value: 0 }, glow: { value: 0 } };
+  let rotorMat = null;
+  function rotorMaterial(){
+    return rotorMat || (rotorMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: rotorU,
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+      fragmentShader: `uniform float ang, spin, glow; varying vec2 vUv;
+        void main(){
+          vec2 p = vUv*2. - 1.; float r = length(p); if (r > 1.) discard;
+          float s = clamp(spin, 0., 1.), a = atan(p.y, p.x) + ang;
+          float blades = pow(.5 + .5*cos(a*3.), mix(10., 1.2, s)) * smoothstep(1., .9, r) * smoothstep(.12, .22, r);
+          float hub = smoothstep(.22, .15, r), ring = smoothstep(.8, .96, r) * smoothstep(1., .96, r);
+          vec3 c = vec3(.82,.86,.9)*blades*.8 + vec3(.3)*hub + vec3(.35,.9,1.)*ring*glow*3.;
+          gl_FragColor = vec4(c, clamp(blades*mix(.95, .3, s) + hub + ring*glow*.9, 0., 1.));
+        }`
+    }));
+  }
+  function disposeKit(U){
+    if (!U.kit) return;
+    U.kit.groups.forEach(g => { g.parent && g.parent.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); });
+    U.pivots.forEach(p => p.rotation.set(0, 0, 0)); U.fenders.forEach(f => { f.visible = true; f.scale.setScalar(1); });
+    U.basketG.visible = true;
+  }
+  const ease = x => x * x * (3 - 2 * x);
+  const kv = new THREE.Vector3();
+  function wingKit(U){
+    const wings = [-1, 1].map(s => { const w = wingGroup(s, U.wingCol); w.position.set(s * .08, .62, -.2); U.inner.add(w); bake(w.userData.fan); return w; });
+    return { kind: 'wing', groups: wings, mat: wings[0].userData.mat,
+      update(open, dt, st){
+        const flapA = st.sprint ? Math.sin(st.t * 9) * .45 : st.coast ? -.05 : Math.sin(st.t * 2) * .06;
+        wings.forEach((w, i) => { const s = i ? 1 : -1; w.rotation.y = s * (1 - open) * 1.25; w.rotation.z = s * (open * (.42 + flapA) - (1 - open) * .2); w.scale.setScalar(.35 + open * 1.05); });
+      },
+      trail(cb){ wings.forEach((w, i) => { kv.set((i ? 1 : -1) * 1.15, .1, -.2); w.localToWorld(kv); cb(kv); }); },
+    };
+  }
+  // a ducted fan: white duct, cross struts, a frame-coloured band and the rotor disc
+  function fanUnit(U, r){
+    const Mt = mats(), g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.TorusGeometry(r, r * .16, 8, 32).rotateX(Math.PI / 2), Mt.white));
+    const inner = new THREE.Mesh(new THREE.CylinderGeometry(r * .9, r * .9, r * .26, 32, 1, true).scale(-1, 1, 1), Mt.dark); g.add(inner);   // inside-out: the duct's inner wall, batched with the plain parts
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.14, r * 1.14, r * .12, 32, 1, true), U.frameMat); g.add(band);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(r * .14, r * .14, r * .22, 12), Mt.white); g.add(hub);
+    [0, 1].forEach(k => { const st = new THREE.Mesh(new THREE.BoxGeometry(r * 2, .018, .03), Mt.dark); st.rotation.y = k * Math.PI / 2; st.position.y = -.02; g.add(st); });
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(r * .92, 28).rotateX(-Math.PI / 2), rotorMaterial()); disc.renderOrder = 4; g.add(disc);
+    return g;
+  }
+  function flyKit(U, cargo){
+    const Mt = mats(), arms = [], groups = [];
+    [[1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(([sx, sz], i) => {
+      const pivot = new THREE.Group(); pivot.position.set(sx * .12, .66, sz * (cargo ? .4 : .32)); U.inner.add(pivot); groups.push(pivot);
+      const arm = new THREE.Group(); pivot.add(arm);
+      const L = .74;
+      arm.add(tube(V3(0, 0, 0), V3(L, 0, 0), .028, Mt.white));
+      const joint = new THREE.Mesh(new THREE.SphereGeometry(.05, 10, 8), Mt.white); arm.add(joint);
+      const fanG = new THREE.Group(); fanG.position.set(L, 0, 0); fanG.userData.keep = true; arm.add(fanG);
+      fanG.add(fanUnit(U, .33)); fanG.children[0].rotation.y = i * .9;      // different rotor phases
+      bake(arm); bake(fanG);
+      arms.push({ arm, fanG, phiO: Math.atan2(-sz * .64, sx * .77), phiF: Math.atan2(-sz, sx * .25) });
+    });
+    return { kind: cargo ? 'cargo' : 'fly', groups, arms,
+      update(open, dt, st){
+        const e = ease(Math.min(1, open));
+        arms.forEach(a => { a.arm.rotation.y = a.phiF + (a.phiO - a.phiF) * e; a.fanG.rotation.x = (1 - e) * Math.PI / 2; a.fanG.scale.setScalar(.72 + .28 * e); a.fanG.rotation.z = -st.bank * .15 * e; });
+      },
+      trail(cb){ arms.forEach(a => { kv.set(0, 0, 0); a.fanG.localToWorld(kv); cb(kv); }); },
+    };
+  }
+  function hoverKit(U){
+    const groups = [], glowM = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x40e0ff).multiplyScalar(1.6), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    const extras = U.pivots.map(p => {
+      const g = new THREE.Group(); p.add(g); groups.push(g);
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(U.R * .86, 28).rotateY(Math.PI / 2), rotorMaterial()); disc.renderOrder = 4; g.add(disc);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(U.R + .03, .022, 6, 36).rotateY(Math.PI / 2), glowM); g.add(ring);
+      return g;
+    });
+    return { kind: 'hover', groups, glowM,
+      update(open, dt, st){
+        const e = ease(Math.min(1, open));
+        U.pivots.forEach((p, i) => { p.rotation.z = e * Math.PI / 2; p.rotation.x = e * (i ? -.32 : .32) * (1 + st.bank * .3); });
+        U.fenders.forEach(f => { f.visible = e < .97; f.scale.setScalar(1 - e * .9); });
+        extras.forEach(g => { g.visible = e > .02; g.scale.setScalar(.2 + .8 * e); });
+        glowM.opacity = e * (.55 + (st.sprint ? .4 : 0));
+        // the wheels are the fans now: spin them up
+        U.rearW.rotation.x += dt * e * (st.sprint ? 40 : 26); U.frontW.rotation.x += dt * e * (st.sprint ? 40 : 26);
+      },
+      trail(cb){ U.pivots.forEach(p => { [1, -1].forEach(s => { kv.set(0, s * (U.R + .03), 0); p.localToWorld(kv); cb(kv); }); }); },
+    };
+  }
+  // the cargo bike: the drone kit + a crate over the front wheel + a goggled dog who loves flying
+  function dogModel(){
+    const fur = new THREE.MeshStandardMaterial({ color: 0xe0a858, roughness: .9 }), cream = new THREE.MeshStandardMaterial({ color: 0xf6e2b8, roughness: .9 }),
+      dark = new THREE.MeshStandardMaterial({ color: 0x8a5a2a, roughness: .9 }), black = mats().dark;
+    const dog = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.11, .12, 4, 10), fur); body.rotation.x = -.35; dog.add(body);
+    const chest = new THREE.Mesh(new THREE.SphereGeometry(.085, 10, 8), cream); chest.position.set(0, .03, .08); dog.add(chest);
+    [-1, 1].forEach(s => { const paw = new THREE.Mesh(new THREE.SphereGeometry(.04, 8, 6), cream); paw.position.set(s * .07, .03, .2); dog.add(paw); });
+    const head = new THREE.Group(); head.position.set(0, .2, .1); head.userData.keep = true; dog.add(head);
+    head.add(new THREE.Mesh(new THREE.SphereGeometry(.11, 14, 10), fur));
+    const snout = new THREE.Mesh(new THREE.SphereGeometry(.06, 10, 8), cream); snout.scale.set(1, .8, 1.3); snout.position.set(0, -.03, .1); head.add(snout);
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(.022, 8, 6), black); nose.position.set(0, -.01, .175); head.add(nose);
+    const tongue = new THREE.Mesh(new THREE.BoxGeometry(.035, .01, .05), new THREE.MeshStandardMaterial({ color: 0xff7a8a, roughness: .6 })); tongue.position.set(0, -.075, .14); tongue.rotation.x = .5; head.add(tongue);
+    const ears = [-1, 1].map(s => { const ear = new THREE.Mesh(new THREE.SphereGeometry(.06, 8, 6), dark); ear.scale.set(.35, 1, .7); ear.position.set(s * .1, -.01, -.01); ear.userData.keep = true; head.add(ear); return ear; });
+    [-1, 1].forEach(s => { const g = new THREE.Mesh(new THREE.TorusGeometry(.032, .011, 6, 14), mats().goggle); g.position.set(s * .045, .04, .09); head.add(g); });
+    const strap = new THREE.Mesh(new THREE.TorusGeometry(.105, .008, 4, 20), black); strap.rotation.x = Math.PI / 2; strap.position.y = .04; head.add(strap);
+    const tail = new THREE.Group(); tail.position.set(0, .02, -.13); tail.userData.keep = true; dog.add(tail);
+    const tm = new THREE.Mesh(new THREE.CapsuleGeometry(.022, .1, 3, 6), fur); tm.position.y = .06; tm.rotation.x = -.6; tail.add(tm);
+    bake(dog); bake(head); bake(tail);
+    dog.userData = { head, ears, tail };
+    return dog;
+  }
+  function cargoKit(U){
+    const k = flyKit(U, true), Mt = mats();
+    U.basketG.visible = false;
+    const crate = new THREE.Group(); crate.position.set(0, .8, .7); U.inner.add(crate); k.groups.push(crate);
+    const W = .46, H = .26, D = .44, t = .025;
+    [[0, -H / 2, 0, W, t, D], [W / 2, 0, 0, t, H, D], [-W / 2, 0, 0, t, H, D], [0, 0, D / 2, W, H, t], [0, 0, -D / 2, W, H * .7, t]].forEach(([x, y, z, w, h, d]) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), Mt.white); b.position.set(x, y, z); crate.add(b); });
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(W + .01, .05, D + .01), U.frameMat); stripe.position.y = H / 2 - .03; crate.add(stripe);
+    crate.add(tube(V3(0, -H / 2, -.1), V3(0, -.12, -.27), .02, Mt.dark));
+    const dog = dogModel(); dog.position.set(0, .02, -.02); dog.scale.setScalar(1.3); dog.userData.keep = true; crate.add(dog);
+    bake(crate);
+    const D2 = dog.userData;
+    const base = k.update;
+    k.update = (open, dt, st) => {
+      base(open, dt, st);
+      const wag = 7 + Math.min(10, st.combo || 0) + st.cheer * 8;
+      D2.tail.rotation.y = Math.sin(st.t * wag) * .7;
+      D2.head.rotation.set(-.15 + Math.sin(st.t * 3) * .04 - st.cheer * .25, -st.bank * .5, Math.sin(st.t * 1.7) * .08);
+      dog.position.y = .02 + st.cheer * Math.abs(Math.sin(st.t * 12)) * .05;
+      D2.ears.forEach((e, i) => { e.rotation.x = -Math.min(1.1, st.v / 30) * (open > .5 ? 1 : .3) + Math.sin(st.t * 14 + i) * .08; });
+    };
+    k.dog = dog;
+    return k;
+  }
+  function setKit(bike, key){
+    const U = bike.userData;
+    if (!KITS[key]) key = 'wing';
+    disposeKit(U);
+    U.kit = key === 'fly' ? flyKit(U, false) : key === 'hover' ? hoverKit(U) : key === 'cargo' ? cargoKit(U) : wingKit(U);
+    U.kitKey = key;
+    return U.kit;
+  }
+  // per-frame shared rotor animation (one uniform drives every fan)
+  function rotorStep(dt, spin, glow){ rotorU.spin.value += (spin - rotorU.spin.value) * Math.min(1, dt * 3); rotorU.ang.value += dt * rotorU.spin.value * 60; rotorU.glow.value += (glow - rotorU.glow.value) * Math.min(1, dt * 4); }
 
   /* ---------- scarf: a ribbon that trails in the wind (world space) ---------- */
   function scarf(color){
@@ -472,5 +625,5 @@ SP.Models = (() => {
     return root;
   }
 
-  return { bake, PAINTS, mats, bicycle, poseRider, setPaint, scarf, birds, ring, starCoin, island, waterfall, fallUniforms, tree, house, tower, airship, windmill, lighthouse, seaStack, seaArch, sailboat, whale, asteroid, moon, goalGate, displace, tube };
+  return { bake, PAINTS, KITS, setKit, rotorStep, mats, bicycle, poseRider, setPaint, scarf, birds, ring, starCoin, island, waterfall, fallUniforms, tree, house, tower, airship, windmill, lighthouse, seaStack, seaArch, sailboat, whale, asteroid, moon, goalGate, displace, tube };
 })();

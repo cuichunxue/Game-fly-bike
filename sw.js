@@ -1,5 +1,5 @@
 /* Sky Pedal — offline cache. Bump VERSION whenever game files change. */
-const VERSION = 'sky-pedal-v1';
+const VERSION = 'sky-pedal-v2';
 const FILES = ['./', 'index.html', 'css/style.css', 'manifest.webmanifest', 'assets/favicon.svg',
   'js/vendor/three.min.js', 'js/vendor/three-extras.js', 'js/textures.js', 'js/models.js', 'js/audio.js', 'js/world.js', 'js/fx.js', 'js/game.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });

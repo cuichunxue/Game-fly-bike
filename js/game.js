@@ -33,11 +33,18 @@ const isTouch = () => matchMedia('(pointer: coarse)').matches || ('ontouchstart'
 /* ---------- settings & progress ---------- */
 function load(k, d){ try { const v = JSON.parse(localStorage.getItem(k)); return v ? Object.assign({}, d, v) : d; } catch(e){ return d; } }
 function save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
-const settings = load('sp_settings', { music: .6, sfx: .8, muted: false, quality: 'auto', assist: 'normal', invert: false, tilt: false, motion: matchMedia('(prefers-reduced-motion: reduce)').matches, paint: 'sky' });
+const settings = load('sp_settings', { music: .6, sfx: .8, muted: false, quality: 'auto', assist: 'normal', invert: false, tilt: false, motion: matchMedia('(prefers-reduced-motion: reduce)').matches, paint: 'sky', kit: 'wing' });
 if (!Md.PAINTS[settings.paint]) settings.paint = 'sky';
 if (!ASSIST[settings.assist]) settings.assist = 'normal';
+// the four flight kits unlock as the journey goes on: a reason to fly again
+const starTotal = () => progress.stars.reduce((a, s) => a + s.filter(Boolean).length, 0);
+const KIT_OPEN = { wing: () => true, fly: () => progress.reached >= 2, hover: () => starTotal() >= 6, cargo: () => !!progress.cleared };
+const KIT_HOW = { fly: '空の街に着くと のれる', hover: '★を6個 集めると のれる', cargo: '月に着くと のれる' };
+const unlockedKits = () => Object.keys(Md.KITS).filter(k => KIT_OPEN[k]());
 const progress = load('sp_progress', { reached: 0, cleared: false, best: 0, bestTime: 0, stars: ZONES.map(() => [false, false, false]), plays: 0 });
 if (!Array.isArray(progress.stars) || progress.stars.length !== ZONES.length) progress.stars = ZONES.map(() => [false, false, false]);
+if (!Array.isArray(progress.kitsSeen)) progress.kitsSeen = ['wing'];
+if (!KIT_OPEN[settings.kit] || !KIT_OPEN[settings.kit]()) settings.kit = 'wing';
 
 /* ---------- renderer ---------- */
 const stage = $('stage');
@@ -129,7 +136,7 @@ const bootSteps = [
   ['朝の空を描いています…', () => { SP.Tex.glow(); SP.Tex.smoke(); SP.Tex.puff(); SP.Tex.feather(); }],
   ['丘に草花を植えています…', () => { SP.Tex.grass(); SP.Tex.rock(); SP.Tex.road(); for (let i = 0; i < 3; i++) SP.Tex.wall(i); SP.Tex.moon(); }],
   ['雲海と海を広げています…', () => { W.init(scene, renderer); FX.init(scene); applyQuality(); }],
-  ['自転車に羽をつけています…', () => { bike = Md.bicycle(settings.paint); scene.add(bike); scarf = Md.scarf(Md.PAINTS[settings.paint].scarf); scene.add(scarf.mesh); }],
+  ['自転車を組み立てています…', () => { bike = Md.bicycle(settings.paint, settings.kit); scene.add(bike); scarf = Md.scarf(Md.PAINTS[settings.paint].scarf); scene.add(scarf.mesh); }],
   ['旅のルートを描いています…', () => { W.buildRun({ seed: 7 }); placeAtStart(0); warmWorld(); }],
   ['光を準備しています…', () => { camera.position.set(6, W.yRoad(260) + 2.5, 250); camera.lookAt(0, W.yRoad(260) + 1, 262); renderer.compile(scene, camera); }],
 ];
@@ -167,11 +174,38 @@ function buildTitleUI(){
     b.addEventListener('click', () => { AU.init(); AU.sfx('bell'); settings.paint = k; save('sp_settings', settings); Md.setPaint(bike, k); scarf.mat.color.setHex(p.scarf); scarf.mat.emissive.setHex(p.scarf); sw.querySelectorAll('.swatch').forEach(s => s.setAttribute('aria-pressed', String(s === b))); S.cheer = 1; });
     sw.appendChild(b);
   });
-  segGroup('assistSeg', v => { settings.assist = v; save('sp_settings', settings); }, settings.assist);
+  renderKitPicker();
   segGroup('modeSeg', v => { titleMode = v; renderWorldPicker(); }, 'journey');
   renderWorldPicker();
   syncSettingsUI();
 }
+// the showroom carousel: browse all four vehicles on the 3D scene; locked ones are a teaser
+const KIT_KEYS = Object.keys(Md.KITS);
+let viewKit = settings.kit;
+function renderKitPicker(){
+  const K = Md.KITS[viewKit], open = KIT_OPEN[viewKit]();
+  $('kitName').textContent = (open ? '' : '🔒 ') + K.name;
+  $('kitSub').textContent = open ? K.sub : KIT_HOW[viewKit];
+  $('kitBar').querySelector('.kb-mid').classList.toggle('locked', !open);
+  $('kitDots').innerHTML = KIT_KEYS.map(k => `<i class="${k === viewKit ? 'on' : ''}${KIT_OPEN[k]() ? '' : ' lock'}"></i>`).join('');
+}
+function browseKit(dir){
+  AU.init();
+  viewKit = KIT_KEYS[(KIT_KEYS.indexOf(viewKit) + dir + KIT_KEYS.length) % KIT_KEYS.length];
+  const open = KIT_OPEN[viewKit]();
+  if (open) settings.kit = viewKit, save('sp_settings', settings);
+  Md.setKit(bike, viewKit); S.wingOpen = 0; S.showcase = 2.2; S.cheer = open ? 1 : 0;
+  AU.sfx(open ? (Md.KITS[viewKit].motor ? 'transform' : 'unfold') : 'warn');
+  if (open && viewKit === 'cargo') setTimeout(() => AU.sfx('bark'), 700);
+  renderKitPicker();
+}
+// swap the flight kit (used by the result screen's "try it")
+function selectKit(k){
+  settings.kit = viewKit = k; save('sp_settings', settings);
+  Md.setKit(bike, k); S.wingOpen = 0; renderKitPicker();
+}
+// the bike on the title screen is the vehicle you'll actually fly (a locked teaser falls back)
+function ensureRideable(){ if (viewKit !== settings.kit){ viewKit = settings.kit; Md.setKit(bike, settings.kit); renderKitPicker(); } }
 function renderWorldPicker(){
   const el = $('worldPick'); el.innerHTML = '';
   const maxZ = progress.reached;
@@ -179,7 +213,7 @@ function renderWorldPicker(){
     const b = document.createElement('button'); b.className = 'wpick'; b.dataset.k = k;
     const locked = titleMode === 'free' ? (k === 0 || k > Math.max(1, maxZ)) : k > maxZ;
     const st = progress.stars[k].filter(Boolean).length;
-    b.innerHTML = `<span class="wi">${Z.icon}</span><b>${Z.name}</b><small>${k === 0 ? '' : '★'.repeat(st) + '☆'.repeat(3 - st)}</small>`;
+    b.innerHTML = `<span class="wi">${Z.icon}</span><small>${k === 0 ? 'スタート' : '★'.repeat(st) + '☆'.repeat(3 - st)}</small>`; b.setAttribute('aria-label', Z.name); b.title = Z.name;
     if (locked){ b.disabled = true; b.classList.add('locked'); b.title = 'ジャーニーで到達すると選べます'; }
     if (titleMode === 'free' && k === 0) b.hidden = true;
     const sel = titleMode === 'free' ? (S.freePick || 1) : S.startZone;
@@ -187,19 +221,19 @@ function renderWorldPicker(){
     b.addEventListener('click', () => { AU.init(); AU.sfx('select'); if (titleMode === 'free') S.freePick = k; else S.startZone = k; renderWorldPicker(); });
     el.appendChild(b);
   });
-  $('worldRow').hidden = titleMode === 'journey' && maxZ === 0;
+  $('worldRow').hidden = titleMode === 'journey' && maxZ === 0; titleFrame.ok = false;
   $('startBtn').querySelector('span').textContent = titleMode === 'free' ? 'そらさんぽに出かける' : (S.startZone > 0 ? ZONES[S.startZone].name + 'から とぶ' : 'タップして とびだす');
   const best = progress.best ? `ベスト ${progress.best.toLocaleString()}　` : '';
   const stars = progress.stars.reduce((a, s) => a + s.filter(Boolean).length, 0);
   $('bestLine').textContent = (best + (stars ? `★ ${stars}/12` : '') + (progress.cleared ? '　🌙 月に到達' : '')).trim();
 }
-function showScreen(id){ ['title', 'pause', 'result'].forEach(s => $(s).hidden = s !== id); }
+function showScreen(id){ ['title', 'pause', 'result', 'howto'].forEach(s => $(s).hidden = s !== id); }
 function goTitle(){
   S.mode = 'title'; showScreen('title'); $('hud').hidden = true; $('touch').hidden = true;
   S.free = -1; W.buildRun({ seed: 7 }); placeAtStart(0); warmWorld(); FX.clear();
   S.followers = []; S.titleT = 0; S.orbit = .6;
   AU.setMode('title'); AU.setMuffle(0);
-  renderWorldPicker();
+  renderWorldPicker(); viewKit = settings.kit; Md.setKit(bike, viewKit); renderKitPicker(); titleFrame.ok = false;
 }
 
 /* ---------- start / place ---------- */
@@ -342,8 +376,10 @@ function groundStep(dt, sprint){
   if (S.z >= W.ROAD_END){
     S.phase = 'air'; S.airT = 0; S.pitch = slope + .16; S.v = Math.max(S.v, 17); S.vy = 0;
     S.slow = settings.motion ? 0 : 1.1; S.sideCam = 2.4; S.unfoldT = 0;
-    AU.sfx('unfold'); AU.sfx('takeoff'); flash(.35, true); vibrate(30);
-    toast('とんだ！', '空とぶ自転車、出発', 2.2, 'big');
+    const motor = Md.KITS[settings.kit].motor;
+    AU.sfx(motor ? 'transform' : 'unfold'); AU.sfx('takeoff'); flash(.35, true); vibrate(30);
+    if (settings.kit === 'cargo') setTimeout(() => AU.sfx('bark'), 500);
+    toast(motor ? '変形！' : 'とんだ！', ({ wing: '空とぶ自転車、出発', fly: '飛行モード、展開', hover: 'ホバーモード、起動', cargo: '相棒といっしょに、出発' })[settings.kit], 2.2, 'big');
     setTimeout(() => { if (S.mode === 'play') hint(isTouch() ? '画面を<b>なぞって</b>操縦　↑のぼる ↓さがる ←→まがる' : '<b>← → ↑ ↓</b>（WASD）で操縦。<b>Space</b>でこぐ', 5); }, 2300);
   }
 }
@@ -468,7 +504,7 @@ function collect(dt){
             const lk = e.line; lk.got = (lk.got || 0) + 1;
             if (e.gold){
               S.v = Math.min(PH.VMAX, S.v + PH.GOLD_KICK); S.tail = 2.2; AU.sfx('gold'); FX.ringBurst(e.x, e.y, e.z, vel.x, vel.y, vel.z, true); vibrate(18);
-              if (lk.got === e.n && e.n > 1){ addScore(600, 'パーフェクト!', 'gold'); toast('PERFECT', '追い風に乗った！', 1.1); S.cheer = 1; }
+              if (lk.got === e.n && e.n > 1){ addScore(600, 'パーフェクト!', 'gold'); toast('PERFECT', '追い風に乗った！', 1.1); S.cheer = 1; if (settings.kit === 'cargo') AU.sfx('bark'); }
               else addScore(250, '追い風', 'gold');
             } else {
               S.v = Math.min(PH.VMAX, S.v + PH.RING_KICK); AU.sfx('ring', Math.min(13, S.combo - 1), { pan: clamp((e.x - S.x) / 6, -1, 1) * -1 });
@@ -483,7 +519,7 @@ function collect(dt){
       case 'star': {
         if (Math.hypot(S.x - e.x, S.y - e.y, S.z - e.z) < 3.4){
           e.done = true; S.starsRun.push([e.zone, e.sidx]); AU.sfx('star'); FX.starBurst(e.x, e.y, e.z); flash(.25, false);
-          addScore(1000, '★ スターメダル', 'gold'); toast('★ スターメダル', ZONES[e.zone].name + '　' + (S.starsRun.filter(s => s[0] === e.zone).length) + '/3', 1.8); S.cheer = 1; vibrate([20, 40, 20]);
+          addScore(1000, '★ スターメダル', 'gold'); toast('★ スターメダル', ZONES[e.zone].name + '　' + (S.starsRun.filter(s => s[0] === e.zone).length) + '/3', 1.8); S.cheer = 1; vibrate([20, 40, 20]); if (settings.kit === 'cargo') setTimeout(() => AU.sfx('bark'), 300);
           progress.stars[e.zone][e.sidx] = true; save('sp_progress', progress);
         }
         break;
@@ -493,7 +529,7 @@ function collect(dt){
       case 'flock': flockStep(e, dt); break;
       case 'whale': if (e.breach && Math.abs(e.z - S.z) < 200){ e.breach = 0; AU.sfx('whale'); once('whale', () => hint('クジラだ！ ぶつからないように', 2.4)); }
         if (e.splash){ e.splash = 0; if (e.obj) FX.splash(e.obj.position.x, W.SEA_Y, e.obj.position.z, 0, 0, true); if (Math.abs(e.z - S.z) < 150) AU.sfx('splash'); } break;
-      case 'thermal': if (Math.abs(e.z - S.z) < 300 && Math.random() < .7) FX.thermal(e.x, clamp(S.y, e.y0 + 20, e.y1 - 20), e.z, e.r, S.time); break;
+      case 'thermal': if (Math.abs(e.z - S.z) < 300 && Math.random() < .35) FX.thermal(e.x, clamp(S.y, e.y0 + 20, e.y1 - 20), e.z, e.r, S.time); break;
     }
   }
 }
@@ -513,6 +549,7 @@ function flockStep(e, dt){
 function ringBell(){
   if (S.bellT > 0) return; S.bellT = .35;
   AU.sfx('bell', 0); S.cheer = .6;
+  if (settings.kit === 'cargo') setTimeout(() => AU.sfx('bark'), 260);
   let called = 0;
   for (const e of W.active){
     if (e.kind === 'flock' && Math.hypot(S.x - e.x, S.z - e.z) < 110 && e.birds.some(b => !b.joined && !b.gone)){ e.called = true; called++; }
@@ -561,6 +598,7 @@ function crash(text, kind, ent){
   else { FX.crashPoof(S.x, S.y, S.z); FX.feathers(S.x, S.y, S.z); AU.sfx('crash'); }
   vibrate([40, 30, 60]);
   scatterBirds(.5);
+  if (settings.kit === 'cargo') setTimeout(() => AU.sfx('whine'), 400);
   if (S.free < 0) S.hearts--;
   toast(text, S.free >= 0 ? '' : S.hearts > 0 ? 'のこり ' + '♥'.repeat(S.hearts) : 'もう羽がない…', 1.6, 'warn');
   if (ent && ent.kind === 'whale') once('whaleHit', () => {});
@@ -644,6 +682,9 @@ function showResult(victory){
   $('resStats').innerHTML = stats.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
   $('resStars').innerHTML = zoneStars;
   $('debrief').innerHTML = debrief(victory, left);
+  const fresh = unlockedKits().filter(k => !progress.kitsSeen.includes(k));
+  if (fresh.length){ progress.kitsSeen.push(...fresh); save('sp_progress', progress); const k = fresh[fresh.length - 1]; $('unlockIco').textContent = Md.KITS[k].icon; $('unlockName').textContent = Md.KITS[k].name; $('tryKitBtn').dataset.k = k; $('unlockBox').hidden = false; setTimeout(() => AU.sfx('star'), 500); }
+  else $('unlockBox').hidden = true;
   $('retryBtn').hidden = free || victory || W.zoneAt(S.z) === 0;
   if (!$('retryBtn').hidden){ const k = W.zoneAt(S.z); $('retryBtn').dataset.k = k; $('retryBtn').querySelector('span').textContent = ZONES[k].name + 'から再挑戦'; }
   $('nextBtn').querySelector('span').textContent = free ? 'もう少し飛ぶ' : 'もう一度とぶ';
@@ -694,6 +735,7 @@ async function sharePhoto(){
 
 /* ---------- bike pose, wings, scarf ---------- */
 const tq = new THREE.Quaternion(), te = new THREE.Euler();
+const kitState = { sprint: false, coast: false, cheer: 0, bank: 0, t: 0, v: 0, combo: 0 };
 function placeBike(dt){
   const U = bike.userData;
   bike.position.set(S.x, S.y, S.z);
@@ -708,14 +750,10 @@ function placeBike(dt){
   S.crank += S.cadence * Math.PI * 2 * (dt || 0);
   S.cheer = Math.max(0, S.cheer - (dt || 0) * .5);
   Md.poseRider(bike, S.crank, S.sprinting ? 1 : S.phase === 'air' ? .4 : .2, clamp(S.bank * .8, -1, 1), Math.min(1, S.cheer * 1.6));
-  // wings: folded on the road, unfold at take-off, flap when sprinting, spread wide in a glide
-  const open = S.wingOpen, flapA = S.sprinting ? Math.sin(S.time * 9) * .45 : S.coasting ? -.05 : Math.sin(S.time * 2) * .06;
-  U.wings.forEach((w, i) => {
-    const s = i ? 1 : -1;
-    w.rotation.y = s * (1 - open) * 1.25;
-    w.rotation.z = s * (open * (.42 + flapA) - (1 - open) * .2);
-    w.scale.setScalar(.35 + open * 1.05);
-  });
+  // the flight kit: folded on the road, transforms at take-off (wings flap / rotors spin up when sprinting)
+  kitState.sprint = S.sprinting; kitState.coast = S.coasting; kitState.cheer = Math.min(1, S.cheer * 1.6); kitState.bank = S.bank; kitState.t = S.time; kitState.v = S.v; kitState.combo = S.combo;
+  U.kit.update(S.wingOpen, dt || 0, kitState);
+  if (Md.KITS[U.kitKey].motor) Md.rotorStep(dt || 0, S.wingOpen > .3 ? (S.sprinting ? 1 : S.coasting ? .45 : .7) * S.wingOpen : S.wingOpen * .3, S.wingOpen * (S.sprinting ? 1 : .6));
   // invulnerable blink
   bike.visible = !(S.invuln > 0 && S.mode === 'play' && Math.floor(S.time * 12) % 2 === 0);
   updateScarf(dt || 0);
@@ -799,16 +837,30 @@ function titleUpdate(dt){
   const bx = 0, bz = START_Z, by = W.yRoad(bz);
   S.x = bx; S.z = bz; S.y = by; S.v = 0; S.cadence = 0; S.pitch = W.yRoad(bz + 1) - by; S.yaw = 0;
   if (!titleDrag) S.orbit += dt * .07;
-  const portrait = innerWidth < innerHeight, r = portrait ? 6.6 : 4.8, a = S.orbit;
-  camPos.set(bx + Math.sin(a) * r, by + (portrait ? 2.2 : 1.7), bz + Math.cos(a) * r);
-  camera.position.copy(camPos); camera.up.set(0, 1, 0); camera.lookAt(bx, by + .85, bz);
-  // frame the bike above the title card: portrait shifts the image up, landscape shifts it left
-  setFraming(portrait ? 0 : .2, portrait ? .22 : -.1);
+  if (!titleFrame.ok) layoutTitle();
+  const r = titleFrame.r, a = S.orbit;
+  camPos.set(bx + Math.sin(a) * r, by + 1.2 + r * .13, bz + Math.cos(a) * r);
+  camera.position.copy(camPos); camera.up.set(0, 1, 0); camera.lookAt(bx, by + .8, bz);
+  setFraming(titleFrame.fx, titleFrame.fy);
   camera.fov = damp(camera.fov, baseFov - 6, 2, dt); camera.updateProjectionMatrix();
   S.bank = damp(S.bank, titleDrag ? clamp(titleDrag.dx / 200, -.35, .35) : 0, 4, dt);
-  S.wingOpen = damp(S.wingOpen, titleDrag ? .6 : .15, 2, dt);
+  if (S.showcase > 0) S.showcase -= dt;
+  S.wingOpen = damp(S.wingOpen, S.showcase > .5 || titleDrag ? 1 : settings.kit === 'wing' ? .15 : 0, S.showcase > .5 ? 3 : 2, dt);
 }
 
+// measure the free space the title UI leaves for the 3D bike, and frame the camera into it
+const titleFrame = { ok: false, fx: 0, fy: 0, r: 6 };
+function layoutTitle(){
+  const H = innerHeight, Wd = innerWidth, logo = document.querySelector('.logo-wrap').getBoundingClientRect(), bar = $('kitBar').getBoundingClientRect(), card = document.querySelector('.tcard').getBoundingClientRect();
+  if (!card.height) return;
+  const side = Wd > H && card.left > Wd * .4;            // two-column layout: the bike lives in the left column
+  const top = side ? logo.bottom : logo.bottom, bottom = side ? bar.top : Math.min(bar.top, card.top);
+  const gap = Math.max(80, bottom - top), cx = side ? card.left / 2 : Wd / 2, cy = top + gap * .58;
+  const fov = THREE.MathUtils.degToRad(baseFov - 6);
+  titleFrame.r = clamp(1.9 * H / (2 * Math.tan(fov / 2) * gap * .85), 3.6, 11);
+  titleFrame.fx = (Wd / 2 - cx) / Wd; titleFrame.fy = (H / 2 - cy) / H; titleFrame.ok = true;
+}
+addEventListener('resize', () => { titleFrame.ok = false; });
 let frameX = 0, frameY = 0;
 function setFraming(fx, fy){
   if (fx === frameX && fy === frameY) return; frameX = fx; frameY = fy;
@@ -831,7 +883,7 @@ function hud(dt){
   const ring = $('stamRing'); ring.style.strokeDashoffset = 100 - S.stamina; $('sprintBtn').classList.toggle('tired', S.tired); $('sprintBtn').classList.toggle('low', S.stamina < 30);
   updateJourneyBar();
   // floor warning (sea / ground below)
-  const danger = S.phase === 'air' && B.kind !== 'cloud' && S.y - B.floor < 9 && S.assist.floorGuard < 1;
+  const danger = S.phase === 'air' && S.airT > 1.5 && B.kind !== 'cloud' && S.y - B.floor < 9 && S.assist.floorGuard < 1;
   $('lowOv').classList.toggle('on', danger);
 }
 // next-ring arrow at the screen edge when the ring is off-screen
@@ -857,7 +909,7 @@ let audioClock = 0;
 function audioState(){
   const high = S.zone === 4 ? 1 : 0;
   const I = S.phase === 'ground' ? (S.v > 6 ? 1 : .3) : S.phase === 'air' ? clamp(1 + (S.v - 18) / 14 + (S.sprinting ? .6 : 0) + (S.combo >= 4 ? .8 : 0) + (S.tail > 0 ? .6 : 0) + S.zone * .15, 1, 3.4) : 1;
-  return { playing: S.mode === 'play', speed: S.v, pedal: S.cadence > 0 && S.mode === 'play', sprint: S.sprinting, cadence: S.cadence, wheel: S.v / 2.1, ground: S.phase === 'ground', dive: S.coasting, high, intensity: I, title: S.mode === 'title' };
+  return { playing: S.mode === 'play', speed: S.v, pedal: S.cadence > 0 && S.mode === 'play', sprint: S.sprinting, cadence: S.cadence, wheel: S.v / 2.1, ground: S.phase === 'ground', dive: S.coasting, high, intensity: I, title: S.mode === 'title', motor: Md.KITS[settings.kit].motor ? S.wingOpen * (S.phase === 'air' || S.mode === 'title' ? 1 : 0) : 0 };
 }
 
 /* ---------- frame loop ---------- */
@@ -891,7 +943,8 @@ function tick(rdt, now = performance.now()){
   FX.update(dt, camera.position, S.mode === 'play' ? S.v : 0, fwd, S.time);
   if (S.mode === 'play' && S.phase === 'air' && S.v > 22){
     const U = bike.userData;
-    U.wings.forEach((w, i) => { tmpV.set((i ? 1 : -1) * 1.15, .1, -.2); w.localToWorld(tmpV); FX.wingTrail(tmpV.x, tmpV.y, tmpV.z, vel.x, vel.y, vel.z, S.tail > 0); });
+    const kind = S.tail > 0 ? 1 : Md.KITS[U.kitKey].motor ? 2 : 0;
+    U.kit.trail(p => FX.wingTrail(p.x, p.y, p.z, vel.x, vel.y, vel.z, kind));
   }
   const B = W.bandAt(S.x, S.z);
   FX.setShadow(S.x, B.floor, S.z, S.y - B.floor, S.mode !== 'result' && B.kind !== 'cloud' || (B.kind === 'cloud' && S.y - B.floor < 40), B.kind === 'ground' ? Math.atan2(W.hillH(S.x, S.z + 1) - B.floor, 1) : 0);
@@ -1031,10 +1084,15 @@ async function enableTilt(on){
 }
 
 /* ---------- buttons / settings ---------- */
-$('startBtn').addEventListener('click', () => { AU.init(); AU.sfx('select'); if (titleMode === 'free') startRun({ free: S.freePick || 1 }); else startRun({ zone: S.startZone }); });
+$('startBtn').addEventListener('click', () => { AU.init(); AU.sfx('select'); ensureRideable(); if (titleMode === 'free') startRun({ free: S.freePick || 1 }); else startRun({ zone: S.startZone }); });
 $('nextBtn').addEventListener('click', () => { AU.init(); AU.sfx('select'); if (S.free >= 0) startRun({ free: S.free }); else startRun({ zone: S.startZone }); });
 $('retryBtn').addEventListener('click', () => { AU.init(); AU.sfx('select'); const k = +$('retryBtn').dataset.k || 0; S.startZone = k; startRun({ zone: k }); });
 $('shareBtn').addEventListener('click', sharePhoto);
+$('howBtn').addEventListener('click', () => { AU.init(); AU.sfx('click'); showScreen('howto'); });
+$('howClose').addEventListener('click', () => { AU.sfx('click'); showScreen('title'); });
+$('kitPrev').addEventListener('click', () => browseKit(-1));
+$('kitNext').addEventListener('click', () => browseKit(1));
+$('tryKitBtn').addEventListener('click', () => { AU.init(); selectKit($('tryKitBtn').dataset.k); AU.sfx('select'); startRun({ zone: S.free >= 0 ? 0 : (W.zoneAt(S.z) > 0 && !S.victory ? W.zoneAt(S.z) : 0), free: S.free >= 0 ? S.free : undefined }); });
 $('homeBtn').addEventListener('click', () => { AU.sfx('click'); goTitle(); });
 $('quitBtn').addEventListener('click', () => { AU.sfx('click'); if (S.free >= 0 && S.mode === 'paused'){ S.mode = 'play'; showScreen(null); endRun(false); return; } goTitle(); });
 $('restartBtn').addEventListener('click', () => { AU.sfx('click'); if (S.free >= 0) startRun({ free: S.free }); else startRun({ zone: S.startZone }); });

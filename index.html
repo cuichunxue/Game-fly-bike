@@ -87,19 +87,32 @@
       </g>
     </svg>
   </div>
+  <div class="kitbar" id="kitBar">
+    <button class="kb-arrow" id="kitPrev" aria-label="前ののりもの">‹</button>
+    <div class="kb-mid"><span class="kb-dots" id="kitDots"></span><b id="kitName">はねの自転車</b><small id="kitSub"></small></div>
+    <button class="kb-arrow" id="kitNext" aria-label="次ののりもの">›</button>
+  </div>
   <div class="tcard">
     <p class="lead">丘をかけ下りて、空へ。<b>雲海、空の街、夕陽の海</b>をこえて、<b>月</b>まで。</p>
     <button class="go big" id="startBtn"><span>タップして とびだす</span><svg viewBox="0 0 24 24"><path d="M5 12h12M12 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="best" id="bestLine"></div>
     <div class="row"><div class="seg" id="modeSeg"><button data-v="journey" aria-pressed="true">🌙 ジャーニー</button><button data-v="free" aria-pressed="false">☁️ そらさんぽ</button></div></div>
-    <div class="row" id="worldRow" hidden><span class="lbl">出発する世界</span><div class="wpicks" id="worldPick"></div></div>
-    <div class="row two">
-      <div><span class="lbl">自転車の色</span><div class="swatches" id="paintSeg"></div></div>
-      <div><span class="lbl">アシスト</span><div class="seg small" id="assistSeg"><button data-v="strong">つよい</button><button data-v="normal">ふつう</button><button data-v="off">なし</button></div></div>
-    </div>
+    <div class="row" id="worldRow" hidden><div class="wpicks" id="worldPick"></div></div>
     <div class="trow">
-      <details class="howto"><summary>あそびかた</summary>
-        <ul class="tips">
+      <div class="swatches" id="paintSeg" role="group" aria-label="自転車の色"></div>
+      <span class="sp"></span>
+      <button class="ibtn" id="howBtn" aria-label="あそびかた"><b>?</b></button>
+      <button class="ibtn mutebtn" id="titleMute" aria-label="音のオン・オフ"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="x" d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+      <button class="ibtn" id="settingsBtn" aria-label="設定"><svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.4 4.6l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-4l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-2.3L1.6 9.6l2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h4l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 2.3z"/></svg></button>
+    </div>
+  </div>
+</section>
+
+<!-- how to play -->
+<section class="screen" id="howto" hidden>
+  <div class="card">
+    <h2>あそびかた</h2>
+    <ul class="tips">
           <li><b>画面をなぞる</b>と操縦。上へなぞるとのぼる、下でさがる、左右でまがる。<b>指をはなすと水平</b>にもどります。</li>
           <li>右下の<b>こぐ</b>を長押しで加速・上昇。元気ゲージは<b>滑空</b>や<b>上昇気流</b>でもどります。</li>
           <li>下りると速くなり、上るとおそくなる。<b>高さとスピードを交換</b>するのがコツ。</li>
@@ -107,10 +120,7 @@
           <li>鳥の群れに近づくと<b>なかま</b>になって一緒に飛びます。<b>🔔ベル</b>で遠くの群れも呼べる。</li>
           <li>キーボード：矢印 / WASD で操縦、Space でこぐ、B でベル、P で一時停止。ゲームパッドも使えます。</li>
         </ul>
-      </details>
-      <button class="ibtn mutebtn" id="titleMute" aria-label="音のオン・オフ"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="x" d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
-      <button class="ibtn" id="settingsBtn" aria-label="設定"><svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.4 4.6l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-4l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-2.3L1.6 9.6l2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h4l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 2.3z"/></svg></button>
-    </div>
+    <div class="btns"><button class="go" id="howClose"><span>わかった！</span></button></div>
   </div>
 </section>
 
@@ -141,6 +151,7 @@
       <div class="grade" id="grade">A</div>
       <div><span class="eyebrow" id="resEyebrow">JOURNEY</span><h2 id="resTitle">結果</h2></div>
     </div>
+    <div class="unlock" id="unlockBox" hidden><span class="u-ico" id="unlockIco"></span><div><small>新しいのりもの！</small><b id="unlockName"></b></div><button class="go alt" id="tryKitBtn"><span>のってみる</span></button></div>
     <canvas class="photo" id="photo" width="1080" height="1350" aria-label="記念写真"></canvas>
     <p class="lead" id="debrief"></p>
     <dl class="stats" id="resStats"></dl>

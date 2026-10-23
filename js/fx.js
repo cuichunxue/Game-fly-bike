@@ -119,7 +119,8 @@ SP.FX = (() => {
   }
 
   /* ---------- emitters ---------- */
-  function wingTrail(x, y, z, vx, vy, vz, hot){ glowP.emit(x, y, z, vx * .1, vy * .1, vz * .1, rand(.5, .9), hot ? .5 : .32, .05, hot ? C.gold[0] : C.trail[0], hot ? C.gold[1] : C.trail[1], hot ? .9 : .55, 0, .96); }
+  // kind: 0 feather wings (soft white), 1 tailwind (gold), 2 rotors (cyan)
+  function wingTrail(x, y, z, vx, vy, vz, kind){ const c = kind === 1 ? C.gold : kind === 2 ? C.cyan : C.trail; glowP.emit(x, y, z, vx * .1, vy * .1 - (kind === 2 ? 1.5 : 0), vz * .1, rand(.5, .9), kind === 1 ? .5 : .32, .05, c[0], c[1], kind ? .8 : .55, 0, .96); }
   function sparkle(x, y, z, col = C.white, n = 1, spread = 1){ for (let i = 0; i < n; i++) glowP.emit(x + rand(-spread, spread), y + rand(-spread, spread), z + rand(-spread, spread), rand(-1, 1), rand(-1, 1), rand(-1, 1), rand(.4, .9), rand(.2, .45), .02, col[0], col[1], .9, 0, .95); }
   function ringBurst(x, y, z, vx, vy, vz, gold){
     const col = gold ? C.gold : C.cyan;

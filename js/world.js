@@ -291,7 +291,7 @@ SP.World = (() => {
   }
 
   /* ---------- course plan: entities as data, meshes made only when near ---------- */
-  let ents = [], active = new Set(), free = -1, genZ = 0, runSeed = 1, rng = Math.random, starIdx = 0;
+  let cursor = 0, ents = [], active = new Set(), free = -1, genZ = 0, runSeed = 1, rng = Math.random, starIdx = 0;
   const birdsMax = 120; let birdSys;
   const SPAWN_AHEAD = 1000, DESPAWN_BEHIND = 140;
 
@@ -437,13 +437,16 @@ SP.World = (() => {
   function extendFree(z){
     while (genZ < z + SPAWN_AHEAD + 400){
       const z0 = genZ, z1 = genZ + 600;
+      const n0 = ents.length;
       if (free === 1) genCloud(z0, z1); else if (free === 2) genCity(z0, z1); else if (free === 3) genSea(z0, z1, false); else genStars(z0, z1, true);
+      // keep the plan sorted by z so the spawn cursor can walk it
+      const tail = ents.splice(n0).sort((a, b) => a.z - b.z); ents.push(...tail); ents.forEach((e, i) => e.id = i);
       genZ = z1;
     }
   }
   function clearRun(){
     for (const e of active) despawn(e);
-    active.clear(); ents = []; puffDirty = true;
+    active.clear(); ents = []; puffDirty = true; cursor = 0;
   }
 
   /* ---------- spawning ---------- */
@@ -521,14 +524,17 @@ SP.World = (() => {
     if (free >= 0) extendFree(focusZ);
     // spawn ahead (budgeted), despawn behind
     let budget = 4;
-    for (let i = 0; i < ents.length && budget > 0; i++){
+    if (cursor > ents.length) cursor = 0;
+    while (cursor > 0 && ents[cursor - 1].z > focusZ - DESPAWN_BEHIND) cursor--;
+    while (cursor < ents.length && ents[cursor].z < focusZ - DESPAWN_BEHIND) cursor++;
+    for (let i = cursor; i < ents.length && budget > 0; i++){
       const e = ents[i];
       if (e.z > focusZ + SPAWN_AHEAD) break;
       if (SMALL[e.kind] && e.z > focusZ + 620) continue;
       if (!active.has(e) && !e.done && e.z > focusZ - DESPAWN_BEHIND){ spawn(e); budget--; }
     }
     for (const e of active){ if (e.z < focusZ - DESPAWN_BEHIND || e.done) despawn(e); }
-    if (free >= 0 && ents.length > 900){ ents = ents.filter(e => e.z > focusZ - DESPAWN_BEHIND - 50); ents.forEach((e, i) => e.id = i); }
+    if (free >= 0 && ents.length > 900){ ents = ents.filter(e => e.z > focusZ - DESPAWN_BEHIND - 50); ents.forEach((e, i) => e.id = i); cursor = 0; }
     if (puffDirty) rebuildPuffs();
     // animated things
     Md.fallUniforms.time.value = t;

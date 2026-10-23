@@ -91,6 +91,10 @@ SP.Audio = (() => {
     L.air = gain(0, A.sfxBus); const ah = filt('bandpass', 4200, 2, L.air);
     const n5 = loopNoise(A.white); n5.connect(ah);
     L.airTone = gain(0, A.sfxBus); osc('sine', mtof(88), L.airTone); osc('sine', mtof(95) * 1.003, gain(.6, L.airTone));
+    // electric rotors (fan kits): a soft motor whine + blade-pass hum + rotor wash
+    L.motor = gain(0, A.sfxBus); L.motorLP = filt('lowpass', 1400, 1.2, L.motor);
+    L.m1 = osc('sawtooth', 220, gain(.35, L.motorLP)); L.m2 = osc('sine', 440, gain(.5, L.motorLP)); L.m3 = osc('triangle', 55, gain(.8, L.motor));
+    L.wash = gain(0, A.sfxBus); const n6 = loopNoise(A.white); L.washBP = filt('bandpass', 900, .8); n6.connect(L.washBP); L.washBP.connect(L.wash);
   }
 
   function update(s){
@@ -108,6 +112,11 @@ SP.Audio = (() => {
     L.crank.frequency.setTargetAtTime(Math.max(.5, A.cadence * 2), t, .1);
     L.road.gain.setTargetAtTime(on * (s.ground ? .1 + sp * .25 : 0), t, .06);
     L.roadLP.frequency.setTargetAtTime(160 + sp * 400, t, .1);
+    const mo = clamp(s.motor || 0, 0, 1), rpm = mo * (s.sprint ? 1.35 : 1) * (s.dive ? .8 : 1);
+    A.motor = mo > .3;
+    L.motor.gain.setTargetAtTime(mo * (s.title ? .025 : .04), t, .2); L.wash.gain.setTargetAtTime(mo * (s.title ? .02 : .05 + (s.sprint ? .04 : 0)), t, .2);
+    L.m1.frequency.setTargetAtTime(160 + rpm * 260 + sp * 60, t, .15); L.m2.frequency.setTargetAtTime(320 + rpm * 520 + sp * 120, t, .15);
+    L.m3.frequency.setTargetAtTime(45 + rpm * 30, t, .2); L.motorLP.frequency.setTargetAtTime(600 + rpm * 1800, t, .2); L.washBP.frequency.setTargetAtTime(500 + rpm * 900, t, .2);
     const hi = clamp(s.high || 0, 0, 1);
     L.air.gain.setTargetAtTime(on * hi * .018, t, .8); L.airTone.gain.setTargetAtTime(on * hi * .012, t, .8);
     A.targetInt = s.intensity || 0;
@@ -187,6 +196,14 @@ SP.Audio = (() => {
         break;
       }
       case 'flap': noiseHit(t, .22, .1 + v * .08, 600, 'bandpass', 1.2, 220, { pan: (Math.random() - .5) * .4 }); break;
+      case 'transform': {  // servo clicks as the arms lock out, then the rotors spin up
+        [0, .09, .18, .27].forEach((d, i) => { tone(1600 - i * 180, t + d, .05, 'square', .05); noiseHit(t + d, .06, .12, 3000, 'bandpass', 3); });
+        noiseHit(t + .05, .5, .2, 400, 'bandpass', 2, 1800); tone(90, t + .3, 1.2, 'sawtooth', .07, 340, { glide: .8 }); tone(180, t + .3, 1.2, 'sine', .06, 700, { glide: .8 });
+        [0, 4, 7, 12].forEach((n, i) => tone(mtof(76 + n), t + .5 + i * .06, .5, 'triangle', .06, 0, { verb: .4, delay: .2 }));
+        break;
+      }
+      case 'bark': { const p = opt.pan || .15; [0, .19].forEach((d, i) => { tone(520 - i * 40, t + d, .12, 'sawtooth', .07, 300, { pan: p }); noiseHit(t + d, .1, .14, 900, 'bandpass', 2, 0, { pan: p, verb: .25 }); }); break; }
+      case 'whine': tone(900, t, .5, 'sine', .05, 600, { pan: .15 }); tone(820, t + .5, .5, 'sine', .04, 520, { pan: .15 }); break;
       case 'tired': tone(330, t, .2, 'triangle', .07, 250); tone(262, t + .18, .3, 'triangle', .07, 200); break;
       case 'zone': [0, 7, 12, 16, 19, 24].forEach((n, i) => tone(mtof(55 + n), t + i * .05, 2.6, 'triangle', .05, 0, { verb: .8, att: .3 })); tone(55, t, 1.5, 'sine', .5, 41); noiseHit(t, 2.4, .2, 300, 'lowpass', 1, 6000, { verb: .6 }); break;
       case 'lantern': bell(mtof(84 + PENTA[v % 7]), t, .07, { pan: opt.pan || 0 }); break;
@@ -223,7 +240,7 @@ SP.Audio = (() => {
       // the freewheel ratchet: the nostalgic "tick-tick-tick" when you stop pedalling
       if (now >= A.tickT){ A.tickT = now + 1 / clamp(A.wheel * 9, 4, 34); tone(4200 + Math.random() * 600, t, .012, 'square', .016, 0, { att: .001 }); }
     }
-    if (A.sprint && now >= A.flapT){ A.flapT = now + .42; sfx('flap', 1); }
+    if (A.sprint && !A.motor && now >= A.flapT){ A.flapT = now + .42; sfx('flap', 1); }
   }
 
   /* ---------- adaptive score ---------- */
