@@ -12,7 +12,7 @@ node -e '
 node "$DIR/soundtrack.js" "$W/events.json" "$W/soundtrack.wav"
 ffmpeg -hide_banner -loglevel error -y -framerate 30 -i "$W/frames/%04d.jpg" -i "$W/soundtrack.wav" \
   -filter_complex "[1:a]highpass=f=32,equalizer=f=90:t=q:w=1:g=-3,loudnorm=I=-14:TP=-1.5:LRA=9,afade=t=in:d=0.15,afade=t=out:st=29.3:d=0.7[a]" \
-  -map 0:v -map "[a]" -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -profile:v high -level 4.2 \
+  -map 0:v -map "[a]" -c:v libx264 -preset slow -crf 20 -maxrate 10M -bufsize 20M -pix_fmt yuv420p -profile:v high -level 4.2 \
   -c:a aac -b:a 192k -ar 48000 -movflags +faststart -t 30 "$OUT"
 # a cover image for posting (the moon shot)
 ffmpeg -hide_banner -loglevel error -y -i "$W/frames/0800.jpg" -q:v 2 "${OUT%.mp4}-cover.jpg"
