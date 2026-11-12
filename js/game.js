@@ -966,6 +966,7 @@ function tick(rdt, now = performance.now()){
   U.sat.value = damp(U.sat.value, S.phase === 'crash' ? .5 : S.phase === 'goal' ? 1.25 : 1.1, 3, rdt);
   U.warm.value = W.env.zone === 3 || W.env.zone === 0 ? .6 : 0;
   const night = W.env.zone === 4 ? 1 : 0; bloom.strength = .3 + night * .5; bloom.threshold = 1.15 - night * .4;
+  if (SP.game.camHook) SP.game.camHook(camera, rdt);   // directed shots (promo capture)
   renderer.info.reset(); composer.render(rdt);
   // the souvenir photo: grab the frame we just drew
   if (S.wantPhoto){ S.wantPhoto = false; try { S.photo = renderer.domElement.toDataURL('image/jpeg', .86); AU.sfx('shutter'); } catch(e){ S.photo = null; } }
